@@ -18,11 +18,16 @@ This library calculates a wide dashboard of metrics and provides automated visua
 *   **Adjusted Predictive Values:** Calculates PPV and NPV adjusted to theoretical prevalences (e.g., 10%, 30%, 50%, 80%) to simulate real-world population shifts.
 *   **Radar Chart Visualization:** Automatically generates a spider/radar chart for a quick visual inspection of the model's balance across key metrics (AUC, PR_AUC, 1-Brier, Sens, Spec, PPV, NPV).
 
-## 📦 Requirements
+## 📦 Installation & Setup
 
-*   `numpy`
-*   `matplotlib`
-*   `scikit-learn`
+This project uses `uv` for precisely reproducible dependency management (important for SaMD evaluations).
+
+1. Install [uv](https://github.com/astral-sh/uv).
+2. Clone the repository.
+3. In the root directory, run the following command:
+   `uv sync`
+4. Activate the virtual environment:
+   `source .venv/bin/activate` (macOS/Linux) or `.venv\Scripts\activate` (Windows).
 
 ## 💡 Usage Example
 
