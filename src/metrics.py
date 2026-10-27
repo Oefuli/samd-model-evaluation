@@ -1,21 +1,24 @@
-import os
+import logging
+from typing import Optional, dict, tuple
+
 import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.projections.polar import PolarAxes 
-from typing import Tuple, Dict, Optional, cast
 from sklearn.metrics import (
-    roc_auc_score, 
-    average_precision_score, 
-    confusion_matrix, 
-    brier_score_loss
+    average_precision_score,
+    brier_score_loss,
+    confusion_matrix,
+    roc_auc_score,
 )
+
+logger = logging.getLogger(__name__)
 
 def get_probability_metrics(
         y_true: np.ndarray,
         y_prob: np.ndarray,
         max_fpr: Optional[float] = None
-        ) -> Dict[str, float]:
-    """Berechnet Metriken, die Vorhersagewahrscheinlichkeiten erfordern."""
+        ) -> dict[str, float]:
+    """
+    Calculates metrics that require prediction probabilities.
+    """
     metrics = {}
     
     if len(np.unique(y_true)) > 1:
@@ -23,7 +26,9 @@ def get_probability_metrics(
         metrics['PR_AUC'] = float(average_precision_score(y_true, y_prob))
 
         if max_fpr is not None:
-            metrics[f'pAUC_{max_fpr}'] = float(roc_auc_score(y_true, y_prob, max_fpr=max_fpr))
+            metrics[f'pAUC_{max_fpr}'] = float(
+                roc_auc_score(y_true, y_prob, max_fpr=max_fpr)
+                )
     else:
         metrics['AUC'] = np.nan
         metrics['PR_AUC'] = np.nan
@@ -52,8 +57,10 @@ def get_probability_metrics(
     
     return metrics
 
-def get_prediction_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, float]:
-    """Berechnet Metriken, die harte Klassifikationen (0 oder 1) erfordern."""
+def get_prediction_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+    """
+    Calculates metrics that require hard classifications (0 or 1).
+    """
     metrics = {}
     
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
@@ -80,9 +87,11 @@ def get_prediction_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> Dict[str, 
 def get_adjusted_predictive_values(
         sens: float,
         spec: float,
-        prevalences: Tuple[float, ...]
-        ) -> Dict[str, float]:
-    """Passt den PPV und NPV an theoretische Prävalenzen an."""
+        prevalences: tuple[float, ...]
+        ) -> dict[str, float]:
+    """
+    Adjust the PPV and NPV to reflect theoretical prevalence rates.
+    """
     adj_metrics = {}
     
     for prev in prevalences:
@@ -94,21 +103,64 @@ def get_adjusted_predictive_values(
         
     return adj_metrics
 
+def _validate_inputs(y_true: np.ndarray, y_prob: np.ndarray) -> None:
+    """
+    Ensures that the inputs meet the formal requirements for a SaMD evaluation.
+    """
+    
+    # Check Dimensions and Length
+    if y_true.shape != y_prob.shape:
+        raise ValueError(
+            f"Shape mismatch: y_true has shape {y_true.shape}, "
+            f"but y_prob has {y_prob.shape}."
+            )
+        
+    if len(y_true) == 0:
+        raise ValueError("The arrays y_true and y_prob must not be empty.")
+
+    # Check the valid range of the labels (only 0 and 1 are allowed)
+    unique_labels = np.unique(y_true)
+    if not set(unique_labels).issubset({0, 1}):
+        raise ValueError(f"y_true may only contain 0 and 1. Found: {unique_labels}")
+
+    # Warning if only one class is present (e.g., the data set contains only zeros)
+    if len(unique_labels) == 1:
+        logger.warning(
+            f"The dataset contains only one class ({unique_labels[0]}). "
+            "Some metrics (such as AUC) cannot be calculated."
+            )
+
+    # Check the range of probabilities (0.0 to 1.0)
+    if not np.all((y_prob >= 0.0) & (y_prob <= 1.0)):
+        raise ValueError(
+            "All values in y_prob must be valid probabilities between "
+            "0.0 and 1.0."
+            )
+        
+    # Exclude NaNs
+    if np.isnan(y_true).any() or np.isnan(y_prob).any():
+        raise ValueError(
+            "The inputs contain NaN values, which is not allowed."
+            )
+
 def calculate_metrics(
         y_true: np.ndarray,
         y_prob: np.ndarray,
         threshold: float,
-        adj_prevalences: Tuple[float, ...] = (0.1, 0.3, 0.5, 0.8),
+        adj_prevalences: tuple[float, ...] = (0.1, 0.3, 0.5, 0.8),
         max_fpr: Optional[float] = None,
         suffix: str = ""        
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
-    Kombiniert alle Metriken für den Standard-Workflow.
-    Kompatibel mit deinem bisherigen Setup in `classify.py`.
+    Combines all metrics for the standard workflow.
+    Compatible with your existing setup in `classify.py`.
     """
+
+    _validate_inputs(y_true, y_prob)
+
     y_pred = (np.array(y_prob) >= threshold).astype(int)
     
-    # Unabhängige Modul-Aufrufe
+    # Independent Module Calls
     prob_metrics = get_probability_metrics(y_true, y_prob, max_fpr=max_fpr)
     pred_metrics = get_prediction_metrics(y_true, y_pred)
     adj_metrics = get_adjusted_predictive_values(
@@ -117,84 +169,8 @@ def calculate_metrics(
         adj_prevalences
     )
     
-    # Ergebnisse zusammenführen und Präfix hinzufügen
+    # Merge results and add a prefix
     combined_metrics = {**prob_metrics, **pred_metrics, **adj_metrics}
     
     return {f"{k}{suffix}": v for k, v in combined_metrics.items()}
 
-def plot_spider_chart(
-        metrics_dict: Dict[str, float],
-        suffix: str = "",
-        title: str = "Modell Metriken",
-        categories: Tuple[str, ...] = ('AUC',
-                                       'PR_AUC',
-                                       '1-Brier',                                       
-                                       'Sens',
-                                       'Spec',
-                                       'PPV',
-                                       'NPV'
-                                       ),
-        save_path: Optional[str] = None
-        ) -> None:
-    """
-    Erstellt ein Spinnendiagramm (Radar Chart) für die wichtigsten Klassifikationsmetriken.
-    Achtung: Metriken wie O:E Ratio oder Brier Score haben unterschiedliche Skalen.
-    """    
-    # Werte extrahieren (verwende 0.0 als Fallback, falls eine Metrik fehlt oder NaN ist)
-    values = []
-    for cat in categories:
-        val = metrics_dict.get(f"{cat}{suffix}", np.nan)        
-        values.append(val if not np.isnan(val) else 0.0)
-
-    # Ersten Wert anfügen, um den Kreis im Plot zu schließen
-    values += values[:1]
-    
-    # Winkel für die Achsen berechnen
-    N = len(categories)
-    angles = [n / float(N) * 2 * np.pi for n in range(N)]
-    angles += angles[:1]
-
-    fig, ax_generic = plt.subplots(figsize=(8, 8), subplot_kw=dict(polar=True))
-    ax = cast(PolarAxes, ax_generic) 
-    
-    # Erster Item oben (Norden)
-    ax.set_theta_offset(np.pi / 2)
-    ax.set_theta_direction(-1)
-
-    # Achsenbeschriftungen setzen
-    plt.xticks(angles[:-1], categories, size=10)
-
-    # Y-Labels formatieren (Ringe)
-    ax.set_rlabel_position(0)
-    plt.yticks([0.2, 0.4, 0.6, 0.8, 1.0], ["0.2", "0.4", "0.6", "0.8", "1.0"], color="grey", size=8)
-    plt.ylim(0, 1.0)
-
-    # Daten plotten
-    ax.plot(angles, values, linewidth=2, linestyle='solid', label='Modell Performance')
-    ax.fill(angles, values, alpha=0.25)
-
-    bss = metrics_dict.get(f"Brier_Skill_Score{suffix}", np.nan)
-    oe = metrics_dict.get(f"O:E_Ratio{suffix}", np.nan)
-
-    full_title = title
-    if not np.isnan(bss) or not np.isnan(oe):
-        full_title += "\n"
-        subtitle_parts = []
-        if not np.isnan(bss):
-            subtitle_parts.append(f"Brier Skill Score: {bss:.4f}")
-        if not np.isnan(oe):
-            subtitle_parts.append(f"O:E Ratio: {oe:.2f}")
-        full_title += " | ".join(subtitle_parts)
-
-    plt.title(full_title, size=14, y=1.1, linespacing=1.5)
-    plt.tight_layout()
-
-    if save_path:
-        # Erstelle die Ordnerstruktur, falls sie nicht existiert
-        os.makedirs(os.path.dirname(os.path.abspath(save_path)), exist_ok=True)
-        
-        # Plot speichern (dpi=300 sorgt für scharfe Druckqualität)
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close(fig) # WICHTIG: Gibt den Arbeitsspeicher wieder frei!
-    else:
-        plt.show()
