@@ -1,0 +1,66 @@
+{
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml"
+  },
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "tests/**",
+      "sentiment_analysis/whisperx_model/**",
+      "repomix-output.xml",
+      "**/*.lock",
+      "**/uv.lock",
+      "**/pubspec.lock",
+      "**/Podfile.lock",
+      "**/*.png",
+      "**/*.svg",
+      "**/*.pdf",
+      "**/*.ico",
+      "**/*.wav",
+      "**/*.g.dart",
+      "**/*.freezed.dart",
+      "**/*.mapper.dart",
+      "**/__pycache__/**",
+      "**/.venv/**",
+      "**/venv/**",
+      "**/build/**",
+      "**/.gradle/**",
+      "**/ios/Pods/**",
+      "**/ios/**/*.xcodeproj/**",
+      "**/ios/**/*.xcworkspace/**",
+      "diagrams/curated/rendered/**",
+      "structurizr-exported/rendered/**",
+      "**/.metadata",
+      "**/bruno/**",
+      "**/realm-export.json",
+      "**/*_jwks.json",
+      
+      "**/seed.py",
+      "**/*_seed_data.dart",
+      "**/tool/generate_seed.py",
+      
+      "**/android/**",
+      "**/ios/**",
+      "**/macos/**",
+      "**/linux/**",
+      "**/web/**",
+      
+      "**/diagrams/**",
+      "**/structurizr/**",
+      "**/structurizr-exported/**",
+      
+      "**/*.csv",
+      "**/*.arb",
+      "**/*.tpl",
+
+      "**/.env*",
+      "**/*.pem",
+      "**/*.key"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  }
+}
